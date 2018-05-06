@@ -1,4 +1,10 @@
 import numpy
+import sys
+import serial
+import time
+
+
+
 SET_REF = 0x01
 REQ_POS = 0x02
 SEND_POS = 0x03
@@ -7,32 +13,35 @@ ERR_ID = 10
 ERR_HEAD = 11
 ERR_CH = 12
 
-ID = 9 # unque per motor controller
+ID = 0x17 # unque per motor controller
+
 def makeHead(id):
 	buffr = ""
-	buffr = buffr + char(0xFF) + char(0xFF) + char(id)
+	buffr = buffr + chr(0xFF) + chr(0xFF) + chr(id)
 	return buffr
 
 def makeCheckSum(Buffr):
-	for i in range (2,size(Buffr)):
-		d = d + Buffr[i]
+	d = 0
+	for i in range (2,len(Buffr)):
+		d = d + ord(Buffr[i])
 	d = d & 0xFF
-	return char(d)
+	return chr(d)
 
 def makeReqPos(buffr):
-	buffr = buffr + char(0x02) + char(0x02);
-	Ch = getCheckSum(buffr)
-	buff = buffr + char(Ch)
+	buffr = buffr + chr(0x02) + chr(0x02);
+	Ch = makeCheckSum(buffr)
+	buffr = buffr + (Ch)
 	return buffr
 
 def makeRef(ID,theta):
 	buff = makeHead(ID)
-	buff = buff + char(0x04) # 4 more to read
-	buff = buff + char(0x01) # set ref
-	thetaInt = int(floor(theta/0.005))# needs to be 16 bits
-	thetaLSB = char(thetaInt & 0xFF)
-	thetaMSB = char((thetaInt>>8) & 0xFF)
-	buff = buff + char(thetaMSB) + char(thetaLSB)
+	buff = buff + chr(0x04) # 4 more to read
+	buff = buff + chr(0x01) # set ref
+	thetaInt = int(numpy.floor(theta/0.005))# needs to be 16 bits
+	print(thetaInt)
+	thetaLSB = chr(thetaInt & 0xFF)
+	thetaMSB = chr((thetaInt>>8) & 0xFF)
+	buff = buff + thetaMSB + thetaLSB
 	buff = buff + makeCheckSum(buff)
 	return buff
 
@@ -40,9 +49,9 @@ def getMSG():
 	readBuff = serial.read()
 	if(readBuff[0] != readBuff[1] != 0xFF):
 		return (1,ERR_HEAD)
-	tempBuff = readBuff(0:size(readBuff)-1)
+	tempBuff = readBuff[0:len(readBuff)-1]
 	ck = makeCheckSum(tempBuff)
-	if( ck != readBuff[size(readBuff) -1):
+	if(ck != readBuff[len(readBuff) -1]):#checkSum
 		return (1,ERR_CK)
 	# all checks complete
 	if(buff[2] != ID):
@@ -51,8 +60,40 @@ def getMSG():
 	if(buff[3] == SET_REF):
 		thetaiMSB = buff[5]
 		thetaiLSB = buff[6]
-		thetai = int((thetaiMSB << 8) || thetaiLSB) # 16 bit
+		thetai = int((thetaiMSB << 8) | thetaiLSB) # 16 bit
 		theta = float(thetai * 1.0) * 0.005
 		return (0,theta)
-	
-		
+
+def sendMSG(buff):
+	ser.write(buff)
+
+
+ser = serial.Serial(
+    port='/dev/ttyS0',\
+    baudrate=9600,\
+    parity=serial.PARITY_NONE,\
+    stopbits=serial.STOPBITS_ONE,\
+    bytesize=serial.EIGHTBITS,\
+        timeout=1)
+
+
+ser.flush()
+print("connected to: " + ser.portstr)
+
+curBuff = makeHead(ID)
+curBuff = makeReqPos(curBuff) #makeRef(ID, 60)#makeReqPos(curBuff)
+sendMSG(curBuff)
+while 1:
+	toRead = ser.inWaiting()
+	if(toRead):
+		tdata = ser.read(toRead)
+		print(tdata)
+		print(toRead)
+	time.sleep(.1)              # Sleep (or inWaiting() doesn't give the correct value)
+	#data_left = ser.inWaiting()  # Get the number of characters ready to be read
+	#tdata += ser.read(data_left) # Do the read and combine it with the first character
+	#if(tdata):
+	#yt	print(tdata)
+
+
+
