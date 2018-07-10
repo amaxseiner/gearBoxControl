@@ -24,7 +24,7 @@ def makeCheckSum(Buffr):
 	for i in range (2,len(Buffr)):
 		d = d + ord(Buffr[i])
 	d = d & 0xFF
-	return chr(d)
+	return chr(d+1)
 
 def makeReqPos(buffr):
 	buffr = buffr + chr(0x02) + chr(0x02);
@@ -36,8 +36,11 @@ def makeRef(ID,theta):
 	buff = makeHead(ID)
 	buff = buff + chr(0x04) # 4 more to read
 	buff = buff + chr(0x01) # set ref
+	if(theta < 0):
+		theta = theta + 255
 	thetaInt = int(numpy.floor(theta))# needs to be 16 bits
 	#print(thetaInt)
+		
 	thetaLSB = chr(thetaInt & 0xFF)
 	thetaMSB = chr((thetaInt>>8) & 0xFF)
 	buff = buff + thetaMSB + thetaLSB
@@ -116,40 +119,3 @@ print("connected to: " + ser.portstr)
 stop = False
 curBuff = makeRef(ID,theta)
 sendMSG(curBuff)
-send = False
-time.sleep(1)
-sendPosReq()
-start = time.time()
-count = 0
-while 1:
-	#time.sleep(.2)
-	try:
-		if(ser.inWaiting()):
-			tdata = ser.read(4)
-			if(tdata):
-				if(tdata[0:4] == 'FFFF'):
-					tdata = ser.read(4)
-					yup = tdata + ser.read(2*int(tdata[2:4],16))
-					if(int(yup[10:12],16) == getCheck(yup)):
-						if(int(tdata[0:2],16) == ID):#id verified
-							if(int(yup[4:6],16) == SEND_POS):
-								print("found")
-								theat = (int(yup[6:8],16) | int(yup[8:10],16)<<8)
-								#theat = theat * .005
-								print(theat)
-								#send = True
-						else:
-							print("wrong Id")
-					else:
-						print("check sum error")
-	except:
-		ser.close()
-		ser = serial.Serial(
-			port='/dev/ttyS0',\
-			baudrate=9600,\
-			parity=serial.PARITY_NONE,\
-	    		stopbits=serial.STOPBITS_ONE,\
-		 	bytesize=serial.EIGHTBITS,\
-        		timeout=1)
-		print("keep gong")
-	count = count +1
